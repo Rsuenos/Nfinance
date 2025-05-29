@@ -1,0 +1,33 @@
+/* client/src/index.css */
+/* Tarayıcı varsayılan stillerini sıfırla */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f0f2f5; /* Genel arka plan rengi */
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Genel kutu modelini ayarla */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Linkler için varsayılan alt çizgiyi kaldır */
+a {
+  text-decoration: none;
+}
+
+/* Odaklanmış öğeler için ana hatları sıfırla */
+:focus {
+  outline: none;
+}

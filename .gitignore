@@ -1,0 +1,35 @@
+# Node modules
+node_modules/
+
+# Dotenv files (Environment variables)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Prisma
+# Eğer Prisma client oluşturuyorsanız:
+/node_modules/.prisma/client
+/prisma/migrations # Eğer database şemasını version kontrolünde tutmak istemiyorsanız.
+                   # Genellikle migrations tutulur, ancak bazı durumlarda hariç tutulabilir.
+                   # Eğer migrations'ı saklamak istiyorsanız bu satırı kaldırın.
+
+# Build outputs
+/client/build/
+/client/dist/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.pnpm-error.log*
+
+# OS generated files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

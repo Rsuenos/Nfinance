@@ -1,0 +1,128 @@
+// server/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String        @id @default(uuid())
+  email       String        @unique
+  password    String
+  firstName   String?
+  lastName    String?
+  dateOfBirth DateTime?
+  phoneNumber String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  bankAccounts BankAccount[]
+  creditCards  CreditCard[]
+  loans        Loan[]
+  investments  Investment[]
+  transactions Transaction[] // User'a ait tüm işlemleri bağladık
+}
+
+model BankAccount {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id])
+  name          String        // Örn: "Ana Vadesiz Hesap", "Tasarruf Hesabı"
+  balance       Float         // Mevcut nakit bakiye - pozitif veya negatif olabilir
+  currency      String        // Örn: "TRY", "USD"
+  accountNumber String?       // Opsiyonel
+  iban          String?       // Opsiyonel
+  type          String?       // Örn: "Checking", "Savings"
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  // BankAccount'tan kaynaklanan veya BankAccount'a hedef olan işlemler
+  transactions_as_source      Transaction[] @relation("SourceBankTransactions")
+  transactions_as_destination Transaction[] @relation("DestinationBankTransactions")
+}
+
+model CreditCard {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  name            String        // Örn: "X Bankası Kredi Kartı"
+  cardNumberLast4 String?       // Son 4 hanesi, güvenlik için
+  creditLimit     Float         // Toplam limit
+  currentDebt     Float         @default(0) // Mevcut borç
+  availableLimit  Float?        // Kalan kullanılabilir limit
+  dueDate         DateTime      // Son ödeme tarihi
+  type            String?       // Örn: "Visa", "MasterCard"
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  // CreditCard'dan kaynaklanan veya CreditCard'a hedef olan işlemler
+  transactions_as_source      Transaction[] @relation("SourceCreditCardTransactions")
+  transactions_as_destination Transaction[] @relation("DestinationCreditCardTransactions")
+}
+
+model Loan {
+  id              String        @id @default(uuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  name            String        // Kredi adı (örn: "Konut Kredisi", "İhtiyaç Kredisi")
+  totalAmount     Float         // Toplam kredi miktarı
+  remainingAmount Float         // Kalan borç
+  interestRate    Float         // Faiz oranı
+  monthlyPayment  Float         // Aylık taksit tutarı
+  startDate       DateTime      // Kredi başlangıç tarihi
+  endDate         DateTime      // Kredi bitiş tarihi
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  // Loan'dan kaynaklanan veya Loan'a hedef olan işlemler (örn: kredi ödemeleri)
+  transactions_as_source      Transaction[] @relation("SourceLoanTransactions")
+  transactions_as_destination Transaction[] @relation("DestinationLoanTransactions")
+}
+
+model Investment {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  name      String    // Yatırımın adı (örn: "Hisse Senedi Portföyü", "Altın Hesabı")
+  type      String    // Yatırım türü (örn: "Stocks", "Gold", "Mutual Funds")
+  value     Float     // Güncel değer
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+// TRANSACTION MODELİ - PostgreSQL için düzeltildi ve ilişkiler eklendi
+model Transaction {
+  id                      String    @id @default(uuid())
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id])
+  type                    String    // 'income', 'expense', 'transfer'
+  amount                  Float
+  date                    DateTime  @default(now())
+  description             String?
+  category                String
+
+  // Kaynak Hesap/Kart/Kredi İlişkileri (Bir işlem bunlardan birinden kaynaklanabilir)
+  sourceBankAccountId     String?
+  sourceBankAccount       BankAccount? @relation("SourceBankTransactions", fields: [sourceBankAccountId], references: [id])
+
+  sourceCreditCardId      String?
+  sourceCreditCard        CreditCard?  @relation("SourceCreditCardTransactions", fields: [sourceCreditCardId], references: [id])
+
+  sourceLoanId            String?
+  sourceLoan              Loan?        @relation("SourceLoanTransactions", fields: [sourceLoanId], references: [id])
+
+  // Hedef Hesap/Kart/Kredi İlişkileri (Bir işlem bunlardan birine gidebilir)
+  destinationBankAccountId    String?
+  destinationBankAccount      BankAccount? @relation("DestinationBankTransactions", fields: [destinationBankAccountId], references: [id])
+
+  destinationCreditCardId     String?
+  destinationCreditCard       CreditCard?  @relation("DestinationCreditCardTransactions", fields: [destinationCreditCardId], references: [id])
+
+  destinationLoanId           String?
+  destinationLoan             Loan?        @relation("DestinationLoanTransactions", fields: [destinationLoanId], references: [id])
+
+  transferType            String?   // 'bank_to_bank', 'bank_to_credit_card', 'credit_card_to_bank' vb.
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
