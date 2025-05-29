@@ -10,6 +10,8 @@ const Register = () => {
 
   // Yup ile form doğrulama şeması
   const validationSchema = Yup.object({
+    name: Yup.string() // <-- Yeni: name alanı için doğrulama
+      .required('Ad alanı zorunludur.'),
     email: Yup.string()
       .email('Geçerli bir e-posta adresi girin.')
       .required('E-posta adresi zorunludur.'),
@@ -21,9 +23,10 @@ const Register = () => {
   // Form gönderildiğinde çalışacak fonksiyon
   const handleSubmit = async (values, { setSubmitting, setErrors }) => {
     try {
+      // 'values' objesi artık 'name', 'email' ve 'password' içeriyor olacak.
       const response = await axios.post('http://localhost:5000/api/auth/register', values);
       console.log('Kayıt Başarılı:', response.data);
-      alert(response.data.message); // Kullanıcıya başarı mesajı göster
+      alert(response.data.message || 'Kayıt başarıyla tamamlandı!'); // Kullanıcıya başarı mesajı göster
       navigate('/login'); // Kayıt başarılı ise login sayfasına yönlendir
     } catch (error) {
       console.error('Kayıt Hatası:', error.response ? error.response.data : error.message);
@@ -39,12 +42,20 @@ const Register = () => {
       <div style={styles.card}>
         <h2 style={styles.title}>Kayıt Ol</h2>
         <Formik
-          initialValues={{ email: '', password: '' }}
+          // Yeni: initialValues'a 'name' alanını ekleyin
+          initialValues={{ name: '', email: '', password: '' }}
           validationSchema={validationSchema}
           onSubmit={handleSubmit}
         >
           {({ isSubmitting, errors }) => (
             <Form style={styles.form}>
+              {/* Yeni: Name alanı için Form Group */}
+              <div style={styles.formGroup}>
+                <label htmlFor="name" style={styles.label}>Ad:</label>
+                <Field type="text" name="name" style={styles.input} />
+                <ErrorMessage name="name" component="div" style={styles.error} />
+              </div>
+
               <div style={styles.formGroup}>
                 <label htmlFor="email" style={styles.label}>E-posta:</label>
                 <Field type="email" name="email" style={styles.input} />
