@@ -1,26 +1,27 @@
 // server/server.js
 
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const bankAccountRoutes = require('./routes/bankAccountRoutes');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// CommonJS 'require' yerine ES Modülü 'import' kullanıyoruz
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client'; // PrismaClient'ı doğru şekilde import et
+import { Router } from 'express'; // Express.Router için Router'ı import et
 
-// Rotaları içe aktar
-// auth.js'in içindeki rotalar authRoutes olarak adlandırıldı
-const authRoutes = require('./routes/auth');
-// transactions.js'in içindeki rotalar transactionRoutes olarak adlandırıldı
-const transactionRoutes = require('./routes/transactions');
-// creditCardRoutes.js'in içindeki rotalar creditCardRoutes olarak adlandırıldı
-const creditCardRoutes = require('./routes/creditCardRoutes'); 
+// Rotaları içe aktar (şimdi ES Modülü import syntax'ı ve .js uzantısı ile)
+import authRoutes from './routes/auth.js';
+import transactionRoutes from './routes/transactions.js';
+import creditCardRoutes from './routes/creditCardRoutes.js';
+import bankAccountRoutes from './routes/bankAccountRoutes.js';
 // Loan ve Investment rotaları da varsa, onları da buraya eklemelisiniz:
-// const loanRoutes = require('./routes/loanRoutes');
-// const investmentRoutes = require('./routes/investmentRoutes');
+// import loanRoutes from './routes/loanRoutes.js';
+// import investmentRoutes from 'routes/investmentRoutes.js';
 
 
 // .env dosyasını yükle
 dotenv.config();
+
+// PrismaClient'ı başlat
+const prisma = new PrismaClient();
 
 // Express uygulamasını başlat
 const app = express();

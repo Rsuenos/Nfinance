@@ -1,230 +1,129 @@
 // server/routes/creditCardRoutes.js
 
-const express = require('express');
-const { PrismaClient } = require('@prisma/client');
-const { protect } = require('../middleware/authMiddleware'); // Kullanıcı yetkilendirmesi için
+import express from 'express';
+import { PrismaClient } from '@prisma/client';
+import { protect } from '../middleware/authMiddleware.js'; // .js uzantısını unutmayın
 
 const prisma = new PrismaClient();
 const router = express.Router();
 
-// @route   POST /api/creditcards
-// @desc    Yeni kredi kartı ekle
-// @access  Private
+// Yeni bir kredi kartı ekleme
 router.post('/', protect, async (req, res) => {
-  const { name, cardNumberLast4, creditLimit, dueDate, type } = req.body;
-  const userId = req.userId; // authMiddleware'den gelen kullanıcı ID'si
+  const { cardName, cardNumber, expirationDate, creditLimit, availableLimit } = req.body;
+  const userId = req.user.id; // protect middleware'inden gelen kullanıcı ID'si
 
-  if (!name || !creditLimit || !dueDate) {
-    return res.status(400).json({ message: 'Lütfen kart adı, limit ve son ödeme tarihini girin.' });
+  if (!cardName || !cardNumber || !expirationDate || creditLimit === undefined || availableLimit === undefined) {
+    return res.status(400).json({ message: 'Tüm alanları doldurmanız gerekmektedir.' });
+  }
+
+  // Sayısal değerlerin doğrulanması
+  if (isNaN(creditLimit) || isNaN(availableLimit) || creditLimit < 0 || availableLimit < 0) {
+    return res.status(400).json({ message: 'Limit değerleri geçerli sayılar olmalıdır.' });
   }
 
   try {
-    const newCreditCard = await prisma.creditCard.create({
+    const creditCard = await prisma.creditCard.create({
       data: {
         userId,
-        name,
-        cardNumberLast4: cardNumberLast4 || null, // Opsiyonel
+        cardName,
+        cardNumber,
+        expirationDate: new Date(expirationDate), // Tarih objesine dönüştür
         creditLimit: parseFloat(creditLimit),
-        currentDebt: 0, // Yeni eklenen kartın başlangıç borcu 0
-        dueDate: new Date(dueDate), // Tarih formatı
-        type: type || null, // Opsiyonel
+        availableLimit: parseFloat(availableLimit),
+        currentDebt: parseFloat(creditLimit) - parseFloat(availableLimit) // Borç hesaplaması
       },
     });
-
-    // Kredi kartı oluşturulduktan sonra availableLimit'i ayarla
-    const finalCreditCard = await prisma.creditCard.update({
-        where: { id: newCreditCard.id },
-        data: {
-            availableLimit: newCreditCard.creditLimit - newCreditCard.currentDebt
-        }
-    });
-
-    res.status(201).json({ message: 'Kredi kartı başarıyla eklendi.', creditCard: finalCreditCard });
+    res.status(201).json(creditCard);
   } catch (error) {
-    console.error('Kredi kartı ekleme hatası:', error);
-    res.status(500).json({ message: 'Kredi kartı eklenirken bir hata oluştu.' });
+    console.error('Kredi kartı eklenirken hata:', error.message);
+    res.status(500).json({ message: 'Sunucu hatası: Kredi kartı eklenemedi.' });
   }
 });
 
-// @route   GET /api/creditcards
-// @desc    Kullanıcının tüm kredi kartlarını getir
-// @access  Private
+// Tüm kredi kartlarını getirme
 router.get('/', protect, async (req, res) => {
-  const userId = req.userId;
-
+  const userId = req.user.id;
   try {
     const creditCards = await prisma.creditCard.findMany({
       where: { userId },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { cardName: 'asc' }
     });
-    res.status(200).json({ creditCards });
+    res.status(200).json(creditCards);
   } catch (error) {
-    console.error('Kredi kartlarını getirme hatası:', error);
-    res.status(500).json({ message: 'Kredi kartları getirilirken bir hata oluştu.' });
+    console.error('Kredi kartları getirilirken hata:', error.message);
+    res.status(500).json({ message: 'Sunucu hatası: Kredi kartları getirilemedi.' });
   }
 });
 
-// @route   GET /api/creditcards/:id
-// @desc    Tek bir kredi kartını getir
-// @access  Private
+// ID'ye göre kredi kartı getirme
 router.get('/:id', protect, async (req, res) => {
   const { id } = req.params;
-  const userId = req.userId;
-
+  const userId = req.user.id;
   try {
     const creditCard = await prisma.creditCard.findUnique({
-      where: { id, userId }, // Kartın kullanıcıya ait olduğunu kontrol et
+      where: { id, userId },
     });
+    if (!creditCard) {
+      return res.status(404).json({ message: 'Kredi kartı bulunamadı.' });
+    }
+    res.status(200).json(creditCard);
+  } catch (error) {
+    console.error('Kredi kartı getirilirken hata:', error.message);
+    res.status(500).json({ message: 'Sunucu hatası: Kredi kartı getirilemedi.' });
+  }
+});
+
+// Kredi kartı güncelleme
+router.put('/:id', protect, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+  const { cardName, cardNumber, expirationDate, creditLimit, availableLimit } = req.body;
+
+  try {
+    const updatedCreditCard = await prisma.creditCard.update({
+      where: { id, userId },
+      data: {
+        cardName: cardName || undefined,
+        cardNumber: cardNumber || undefined,
+        expirationDate: expirationDate ? new Date(expirationDate) : undefined,
+        creditLimit: creditLimit !== undefined ? parseFloat(creditLimit) : undefined,
+        availableLimit: availableLimit !== undefined ? parseFloat(availableLimit) : undefined,
+        currentDebt: (creditLimit !== undefined && availableLimit !== undefined) ?
+                     parseFloat(creditLimit) - parseFloat(availableLimit) : undefined
+      },
+    });
+    res.status(200).json(updatedCreditCard);
+  } catch (error) {
+    console.error('Kredi kartı güncellenirken hata:', error.message);
+    res.status(500).json({ message: 'Sunucu hatası: Kredi kartı güncellenemedi.' });
+  }
+});
+
+// Kredi kartı silme
+router.delete('/:id', protect, async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user.id;
+
+  try {
+    const creditCard = await prisma.creditCard.findUnique({ where: { id, userId } });
 
     if (!creditCard) {
       return res.status(404).json({ message: 'Kredi kartı bulunamadı.' });
     }
-    res.status(200).json({ creditCard });
-  } catch (error) {
-    console.error('Tek kredi kartı getirme hatası:', error);
-    res.status(500).json({ message: 'Kredi kartı detayları getirilirken bir hata oluştu.' });
-  }
-});
 
-// @route   PUT /api/creditcards/:id
-// @desc    Kredi kartını güncelle
-// @access  Private
-router.put('/:id', protect, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.userId;
-  const { name, cardNumberLast4, creditLimit, dueDate, type } = req.body;
-
-  try {
-    const existingCard = await prisma.creditCard.findUnique({
-      where: { id, userId },
-    });
-
-    if (!existingCard) {
-      return res.status(404).json({ message: 'Kredi kartı bulunamadı veya yetkiniz yok.' });
-    }
-
-    const updatedCreditCard = await prisma.creditCard.update({
-      where: { id, userId },
-      data: {
-        name: name || existingCard.name,
-        cardNumberLast4: cardNumberLast4 || existingCard.cardNumberLast4,
-        creditLimit: creditLimit ? parseFloat(creditLimit) : existingCard.creditLimit,
-        dueDate: dueDate ? new Date(dueDate) : existingCard.dueDate,
-        type: type || existingCard.type,
-        // currentDebt ve availableLimit burada manuel olarak güncellenmez,
-        // harcamalar ve ödemeler ile değişir.
-      },
-    });
-
-    // Güncelleme sonrası availableLimit'i manuel hesapla ve güncelle
-    const newAvailableLimit = updatedCreditCard.creditLimit - updatedCreditCard.currentDebt;
-    await prisma.creditCard.update({
-        where: { id: updatedCreditCard.id },
-        data: { availableLimit: newAvailableLimit }
-    });
-
-    res.status(200).json({ message: 'Kredi kartı başarıyla güncellendi.', creditCard: { ...updatedCreditCard, availableLimit: newAvailableLimit } });
-  } catch (error) {
-    console.error('Kredi kartı güncelleme hatası:', error);
-    res.status(500).json({ message: 'Kredi kartı güncellenirken bir hata oluştu.' });
-  }
-});
-
-// @route   DELETE /api/creditcards/:id
-// @desc    Kredi kartını sil
-// @access  Private
-router.delete('/:id', protect, async (req, res) => {
-  const { id } = req.params;
-  const userId = req.userId;
-
-  try {
-    const existingCard = await prisma.creditCard.findUnique({
-      where: { id, userId },
-    });
-
-    if (!existingCard) {
-      return res.status(404).json({ message: 'Kredi kartı bulunamadı veya yetkiniz yok.' });
-    }
+    // Bu kredi kartına bağlı tüm işlemleri de silme (veya güncelleme) mantığı buraya eklenebilir.
+    // İşlemleri silmeden önce borç bakiyelerinin doğru ayarlandığından emin olun.
 
     await prisma.creditCard.delete({
       where: { id, userId },
     });
+
     res.status(200).json({ message: 'Kredi kartı başarıyla silindi.' });
   } catch (error) {
-    console.error('Kredi kartı silme hatası:', error);
-    res.status(500).json({ message: 'Kredi kartı silinirken bir hata oluştu.' });
+    console.error('Kredi kartı silinirken hata:', error.message);
+    res.status(500).json({ message: 'Sunucu hatası: Kredi kartı silinemedi.' });
   }
 });
 
-// @route   POST /api/creditcards/:id/pay
-// @desc    Kredi kartı borcunu ödeme
-// @access  Private
-router.post('/:id/pay', protect, async (req, res) => {
-  const { id } = req.params; // Kredi kartı ID'si
-  const userId = req.userId;
-  const { amount, description, bankAccountId } = req.body; // Ödenecek miktar ve opsiyonel açıklama
-
-  if (!amount || amount <= 0) {
-    return res.status(400).json({ message: 'Geçerli bir ödeme miktarı girin.' });
-  }
-
-  try {
-    const creditCard = await prisma.creditCard.findUnique({
-      where: { id, userId },
-    });
-
-    if (!creditCard) {
-      return res.status(404).json({ message: 'Kredi kartı bulunamadı veya yetkiniz yok.' });
-    }
-
-    // Kredi kartı borcunu azalt
-    const updatedCreditCard = await prisma.creditCard.update({
-      where: { id: creditCard.id },
-      data: {
-        currentDebt: creditCard.currentDebt - parseFloat(amount),
-      },
-    });
-
-    // availableLimit'i güncelle
-    const newAvailableLimit = updatedCreditCard.creditLimit - updatedCreditCard.currentDebt;
-    await prisma.creditCard.update({
-        where: { id: updatedCreditCard.id },
-        data: { availableLimit: newAvailableLimit }
-    });
-
-    // Ödemeyi bir gider işlemi olarak kaydet (opsiyonel olarak banka hesabından)
-    await prisma.transaction.create({
-      data: {
-        userId,
-        description: description || `Kredi Kartı Borç Ödeme: ${creditCard.name}`,
-        amount: parseFloat(amount),
-        type: 'expense',
-        date: new Date(),
-        creditCardId: creditCard.id, // Hangi kredi kartı için ödeme yapıldığı
-        bankAccountId: bankAccountId || null, // Eğer ödeme bir banka hesabından yapıldıysa
-      },
-    });
-
-    // Eğer banka hesabı belirtilmişse, o hesaptan parayı düş.
-    if (bankAccountId) {
-        const bankAccount = await prisma.bankAccount.findUnique({ where: { id: bankAccountId, userId } });
-        if (bankAccount) {
-            await prisma.bankAccount.update({
-                where: { id: bankAccountId },
-                data: { balance: bankAccount.balance - parseFloat(amount) }
-            });
-        }
-    }
-
-
-    res.status(200).json({
-      message: 'Kredi kartı borcu başarıyla ödendi ve kaydedildi.',
-      creditCard: { ...updatedCreditCard, availableLimit: newAvailableLimit }
-    });
-  } catch (error) {
-    console.error('Kredi kartı borç ödeme hatası:', error);
-    res.status(500).json({ message: 'Kredi kartı borcu ödenirken bir hata oluştu.' });
-  }
-});
-
-module.exports = router;
+// ES Modülü dışa aktarımı
+export default router;
